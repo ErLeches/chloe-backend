@@ -49,15 +49,23 @@ export default async function handler(req, res) {
           "Authorization": `Bearer ${key}`
         },
         body: JSON.stringify({
-          model: "dall-e-2",
+          model: "gpt-image-1",
           prompt,
           n: 1,
-          size: "1024x1024",
+          size: "1792x1024",
         })
       });
       const data = await r.json();
       if (data.error) return res.status(500).json({ error: data.error.message });
-      return res.status(200).json({ url: data.data?.[0]?.url });
+      // gpt-image-1 returns base64
+      const img = data.data?.[0];
+      if (img?.b64_json) {
+        return res.status(200).json({ url: `data:image/png;base64,${img.b64_json}` });
+      }
+      if (img?.url) {
+        return res.status(200).json({ url: img.url });
+      }
+      return res.status(500).json({ error: "Sin imagen en respuesta", data });
     } catch (e) {
       return res.status(500).json({ error: e.message });
     }
