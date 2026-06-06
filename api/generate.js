@@ -37,41 +37,28 @@ export default async function handler(req, res) {
     }
   }
 
-  // === REPLICATE (imágenes) ===
+  // === DALL-E (imágenes) ===
   if (type === "image") {
-    const token = process.env.REPLICATE_API_TOKEN;
-    if (!token) return res.status(500).json({ error: "REPLICATE_API_TOKEN no configurada en Vercel" });
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) return res.status(500).json({ error: "OPENAI_API_KEY no configurada en Vercel" });
     try {
-      const r = await fetch(
-        "https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-            "Prefer": "wait"
-          },
-          body: JSON.stringify({
-            input: { prompt, aspect_ratio: "16:9", output_format: "webp", num_outputs: 1 }
-          })
-        }
-      );
+      const r = await fetch("https://api.openai.com/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${key}`
+        },
+        body: JSON.stringify({
+          model: "dall-e-3",
+          prompt,
+          n: 1,
+          size: "1792x1024",
+          quality: "standard"
+        })
+      });
       const data = await r.json();
-      if (data.status === "succeeded" && data.output?.[0]) {
-        return res.status(200).json({ url: data.output[0] });
-      }
-      if (data.urls?.get) {
-        for (let i = 0; i < 30; i++) {
-          await new Promise(r => setTimeout(r, 2000));
-          const poll = await fetch(data.urls.get, {
-            headers: { "Authorization": `Bearer ${token}` }
-          });
-          const pd = await poll.json();
-          if (pd.status === "succeeded" && pd.output?.[0]) return res.status(200).json({ url: pd.output[0] });
-          if (pd.status === "failed") return res.status(500).json({ error: "Generación fallida" });
-        }
-      }
-      return res.status(500).json({ error: "Timeout", data });
+      if (data.error) return res.status(500).json({ error: data.error.message });
+      return res.status(200).json({ url: data.data?.[0]?.url });
     } catch (e) {
       return res.status(500).json({ error: e.message });
     }
